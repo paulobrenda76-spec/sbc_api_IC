@@ -1,19 +1,27 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flasgger import Swagger
-from services.scraper_service import buscar_artigos
-from database.db import criar_tabela, salvar_artigos
+from services.artigo_service import ArtigoService
+from database.db import criar_tabela
 
 app = Flask(__name__)
 
-Swagger(app)
+Swagger(app, template={
+    "info": {
+        "title": "API de Artigos",
+        "description": "API para buscar e armazenar artigos científicos",
+        "version": "1.0"
+    }
+})
 
 criar_tabela()
 
-# ROTA 1
+service = ArtigoService()
+
+#ROTA 1 – buscar na API + salvar
 @app.route("/artigos/<string:palavra>", methods=["GET"])
-def get_artigos(palavra):
+def buscar_artigos_api(palavra):
     """
-    Busca artigos por palavra-chave
+    Busca artigos na API externa e salva no banco
     ---
     parameters:
       - name: palavra
@@ -25,55 +33,54 @@ def get_artigos(palavra):
       200:
         description: Lista de artigos encontrados
     """
-    dados = buscar_artigos(palavra)
-
-    # DEBUG (importante agora)
-    print("DADOS RECEBIDOS:", dados)
-
-    # só salva se for lista E não estiver vazia
-    if isinstance(dados, list) and len(dados) > 0:
-        salvar_artigos(dados)
-        print("SALVOU NO BANCO")
-    else:
-        print("NÃO SALVOU (dados inválidos ou vazios)")
-
+    dados = service.buscar_e_salvar(palavra)
     return jsonify(dados)
 
 
-# ROTA 2
+#ROTA 2 – listar banco COM PAGINAÇÃO
 @app.route("/banco", methods=["GET"])
 def listar_banco():
     """
-    Lista todos os artigos salvos no banco
+    Lista artigos do banco com paginação
     ---
+    parameters:
+      - name: page
+        in: query
+        type: integer
+        required: false
+        description: Número da página (default 1)
+      - name: limit
+        in: query
+        type: integer
+        required: false
+        description: Quantidade por página (default 10)
     responses:
       200:
-        description: Lista de artigos do banco de dados
+        description: Lista paginada de artigos
     """
-    import sqlite3
+    page = int(request.args.get("page", 1))
+    limit = int(request.args.get("limit", 10))
 
-    conn = sqlite3.connect("artigos.db")
-    cursor = conn.cursor()
+    return jsonify(service.listar_paginado(page, limit))
 
-    cursor.execute("SELECT * FROM artigos")
-    rows = cursor.fetchall()
 
-    conn.close()
-
-    dados = []
-    for row in rows:
-        dados.append({
-            "id": row[0],
-            "titulo": row[1],
-            "autores": row[2],
-            "ano": row[3],
-            "link": row[4]
-        })
-
-    print("REGISTROS NO BANCO:", len(dados))
-
-    return jsonify(dados)
-
+#ROTA 3 – buscar no banco
+@app.route("/banco/busca/<string:titulo>", methods=["GET"])
+def buscar_banco(titulo):
+    """
+    Busca artigos no banco pelo título
+    ---
+    parameters:
+      - name: titulo
+        in: path
+        type: string
+        required: true
+        description: Parte do título do artigo
+    responses:
+      200:
+        description: Lista de artigos encontrados
+    """
+    return jsonify(service.buscar_no_banco(titulo))
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -8,28 +8,40 @@ def buscar_artigos(palavra_chave):
         "rows": 10
     }
 
-    response = requests.get(url, params=params)
-
-    if response.status_code != 200:
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        print("Erro ao acessar API:", e)
         return []
 
     data = response.json()
 
     artigos = []
 
-    for item in data["message"]["items"]:
-        titulo = item.get("title", ["Sem título"])[0]
+    for item in data.get("message", {}).get("items", []):
+
+        titulo = item.get("title", ["Sem título"])
+        titulo = titulo[0] if titulo else "Sem título"
 
         autores = []
         for a in item.get("author", []):
             nome = f"{a.get('given', '')} {a.get('family', '')}".strip()
-            autores.append(nome)
+            if nome:
+                autores.append(nome)
 
         ano = None
         if "published-print" in item:
-            ano = item["published-print"]["date-parts"][0][0]
+            try:
+                ano = item["published-print"]["date-parts"][0][0]
+            except:
+                pass
 
         link = item.get("URL")
+
+        # evita salvar lixo
+        if not link:
+            continue
 
         artigos.append({
             "titulo": titulo,

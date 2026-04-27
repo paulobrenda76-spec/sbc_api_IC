@@ -1,7 +1,15 @@
-import sqlite3
+import psycopg2
+
 
 def conectar():
-    return sqlite3.connect("artigos.db")
+    return psycopg2.connect(
+        host="localhost",
+        database="artigos",
+        user="postgres",
+        password="1234",
+        port=5432
+    )
+
 
 def criar_tabela():
     conn = conectar()
@@ -9,8 +17,8 @@ def criar_tabela():
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS artigos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            titulo TEXT,
+            id SERIAL PRIMARY KEY,
+            titulo TEXT NOT NULL,
             autores TEXT,
             ano INTEGER,
             link TEXT UNIQUE
@@ -18,27 +26,5 @@ def criar_tabela():
     """)
 
     conn.commit()
-    conn.close()
-
-
-def salvar_artigos(lista_artigos):
-    conn = conectar()
-    cursor = conn.cursor()
-
-    for art in lista_artigos:
-        try:
-            cursor.execute("""
-                INSERT INTO artigos (titulo, autores, ano, link)
-                VALUES (?, ?, ?, ?)
-            """, (
-                art["titulo"],
-                ", ".join(art["autores"]),  
-                art["ano"],
-                art["link"]
-            ))
-        except:
-            
-            continue
-
-    conn.commit()
+    cursor.close()
     conn.close()
